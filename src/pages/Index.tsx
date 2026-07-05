@@ -5,7 +5,7 @@ import {
   LEVELS, SHOP_ITEMS, RANKING, POWERUPS, CHALLENGES, Level,
 } from '@/data/game';
 
-const CAT_IMG = 'https://cdn.poehali.dev/projects/ee9c33ea-4b8f-4a78-9763-92a7406d9016/files/d7105d4e-afd8-413d-b909-3bd80664f88f.jpg';
+const CAT_IMG = 'https://cdn.poehali.dev/projects/ee9c33ea-4b8f-4a78-9763-92a7406d9016/files/24745804-3629-4073-9ebb-4849009d3b5c.jpg';
 
 type Screen = 'menu' | 'levels' | 'ranking' | 'shop' | 'settings' | 'help';
 

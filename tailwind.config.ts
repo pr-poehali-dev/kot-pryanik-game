@@ -114,6 +114,12 @@ export default {
 				'spin-slow': {
 					from: { transform: 'rotate(0)' },
 					to: { transform: 'rotate(360deg)' }
+				},
+				'run-cycle': {
+					'0%,100%': { transform: 'translateY(0) rotate(-3deg) scaleY(1)' },
+					'25%': { transform: 'translateY(-8px) rotate(0deg) scaleY(1.03)' },
+					'50%': { transform: 'translateY(0) rotate(3deg) scaleY(0.98)' },
+					'75%': { transform: 'translateY(-8px) rotate(0deg) scaleY(1.03)' }
 				}
 			},
 			animation: {
@@ -124,7 +130,8 @@ export default {
 				'bounce-soft': 'bounce-soft 2s ease-in-out infinite',
 				'wiggle': 'wiggle 1.2s ease-in-out infinite',
 				'float-coin': 'float-coin 0.7s ease-out forwards',
-				'spin-slow': 'spin-slow 8s linear infinite'
+				'spin-slow': 'spin-slow 8s linear infinite',
+				'run-cycle': 'run-cycle 0.42s ease-in-out infinite'
 			}
 		}
 	},
