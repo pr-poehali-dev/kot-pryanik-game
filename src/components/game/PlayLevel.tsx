@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Icon from '@/components/ui/icon';
 import { POWERUPS, Level } from '@/data/game';
+import { useTransparentImage } from '@/hooks/use-transparent-image';
 
 interface Props {
   level: Level;
@@ -26,6 +27,7 @@ interface Tree {
 }
 
 export default function PlayLevel({ level, catImg, onExit }: Props) {
+  const catImgTransparent = useTransparentImage(catImg);
   const [running, setRunning] = useState(true);
   const [paused, setPaused] = useState(false);
   const [lane, setLane] = useState(1);
@@ -307,9 +309,9 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
       <div className="absolute z-20 left-1/2 transition-all duration-200"
         style={{ bottom: `${catBottom}%`, transform: `translateX(-50%) translateX(${LANE_X[lane] * 26}%)` }}>
         <img
-          src={catImg}
+          src={catImgTransparent}
           alt="Пряник"
-          className={`w-32 md:w-40 mix-blend-multiply origin-bottom ${jumping ? '-rotate-6' : 'animate-run-cycle'}`}
+          className={`w-32 md:w-40 origin-bottom ${jumping ? '-rotate-6' : 'animate-run-cycle'}`}
           style={{ filter: 'drop-shadow(0 12px 12px rgba(0,0,0,.3))' }}
         />
         <div className="absolute left-1/2 -translate-x-1/2 bottom-0 w-20 h-4 bg-black/25 rounded-[100%] blur-sm" />

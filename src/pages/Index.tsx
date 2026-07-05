@@ -4,6 +4,7 @@ import PlayLevel from '@/components/game/PlayLevel';
 import {
   LEVELS, SHOP_ITEMS, RANKING, POWERUPS, CHALLENGES, Level,
 } from '@/data/game';
+import { useTransparentImage } from '@/hooks/use-transparent-image';
 
 const CAT_IMG = 'https://cdn.poehali.dev/projects/ee9c33ea-4b8f-4a78-9763-92a7406d9016/files/24745804-3629-4073-9ebb-4849009d3b5c.jpg';
 
@@ -59,11 +60,12 @@ export default function Index() {
 
 /* ---------- MENU ---------- */
 function Menu({ onPlay, go }: { onPlay: () => void; go: (s: Screen) => void }) {
+  const catImgTransparent = useTransparentImage(CAT_IMG);
   return (
     <div className="text-center animate-fade-in">
       <div className="relative inline-block mt-2 mb-4">
         <div className="absolute inset-0 bg-honey-light rounded-full blur-2xl scale-90 opacity-70 animate-spin-slow" />
-        <img src={CAT_IMG} alt="Пряник" className="relative w-56 md:w-72 mx-auto drop-shadow-2xl animate-bounce-soft mix-blend-multiply" />
+        <img src={catImgTransparent} alt="Пряник" className="relative w-56 md:w-72 mx-auto drop-shadow-2xl animate-bounce-soft" />
       </div>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl text-white" style={{ WebkitTextStroke: '3px #C25E00' }}>
         Бег за золотом
