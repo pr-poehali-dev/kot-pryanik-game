@@ -12,16 +12,16 @@ type ObjType = 'gold' | 'bonus' | 'enemy';
 interface Obj {
   id: number;
   type: ObjType;
-  x: number;
-  y: number;
-  hit?: boolean;
+  lane: number;
+  z: number;
 }
 
-const LANES = [30, 55, 80];
+const LANE_X = [-1, 0, 1];
 
 export default function PlayLevel({ level, catImg, onExit }: Props) {
   const [running, setRunning] = useState(true);
   const [lane, setLane] = useState(1);
+  const [jumping, setJumping] = useState(false);
   const [gold, setGold] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -29,28 +29,62 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
   const [boost, setBoost] = useState(false);
   const [objs, setObjs] = useState<Obj[]>([]);
   const [finished, setFinished] = useState(false);
-  const [pop, setPop] = useState<{ id: number; x: number; y: number; txt: string }[]>([]);
+  const [pops, setPops] = useState<{ id: number; txt: string; x: number }[]>([]);
+  const [shake, setShake] = useState(false);
 
   const idRef = useRef(0);
   const comboTimer = useRef<number>();
+  const jumpTimer = useRef<number>();
+  const laneRef = useRef(1);
+  const jumpingRef = useRef(false);
 
   const multiplier = 1 + Math.floor(combo / 3);
 
   const move = useCallback((dir: number) => {
     if (!running) return;
-    setLane((l) => Math.max(0, Math.min(2, l + dir)));
+    setLane((l) => {
+      const n = Math.max(0, Math.min(2, l + dir));
+      laneRef.current = n;
+      return n;
+    });
+  }, [running]);
+
+  const jump = useCallback(() => {
+    if (!running || jumpingRef.current) return;
+    jumpingRef.current = true;
+    setJumping(true);
+    window.clearTimeout(jumpTimer.current);
+    jumpTimer.current = window.setTimeout(() => {
+      jumpingRef.current = false;
+      setJumping(false);
+    }, 620);
   }, [running]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') move(-1);
       if (e.key === 'ArrowRight') move(1);
+      if (e.key === 'ArrowUp' || e.key === ' ') { e.preventDefault(); jump(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [move]);
+  }, [move, jump]);
 
-  // spawn objects
+  useEffect(() => {
+    let sx = 0, sy = 0;
+    const start = (e: TouchEvent) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; };
+    const end = (e: TouchEvent) => {
+      const dx = e.changedTouches[0].clientX - sx;
+      const dy = e.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (Math.abs(dx) > 30) move(dx > 0 ? 1 : -1);
+      } else if (dy < -30) jump();
+    };
+    window.addEventListener('touchstart', start);
+    window.addEventListener('touchend', end);
+    return () => { window.removeEventListener('touchstart', start); window.removeEventListener('touchend', end); };
+  }, [move, jump]);
+
   useEffect(() => {
     if (!running) return;
     const spawn = setInterval(() => {
@@ -58,57 +92,56 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
       const type: ObjType = r < 0.62 ? 'gold' : r < 0.78 ? 'bonus' : 'enemy';
       setObjs((o) => [
         ...o,
-        { id: idRef.current++, type, x: LANES[Math.floor(Math.random() * 3)], y: -10 },
+        { id: idRef.current++, type, lane: Math.floor(Math.random() * 3), z: 0 },
       ]);
-    }, 850);
+    }, 720);
     return () => clearInterval(spawn);
   }, [running]);
 
-  // game loop
   useEffect(() => {
     if (!running) return;
-    const speed = boost ? 3.4 : 2.2;
+    const speed = boost ? 0.03 : 0.02;
     const loop = setInterval(() => {
       setObjs((prev) => {
-        const catX = LANES[lane];
         const next: Obj[] = [];
         for (const o of prev) {
-          const y = o.y + speed;
-          const collided = !o.hit && y > 72 && y < 90 && Math.abs(o.x - catX) < 14;
-          if (collided) {
+          const z = o.z + speed;
+          const collide = o.z <= 0.9 && z >= 0.9 && o.lane === laneRef.current;
+          if (collide) {
             if (o.type === 'gold') {
-              const val = 1;
-              setGold((g) => g + val);
+              setGold((g) => g + 1);
               setScore((s) => s + 10 * multiplier);
               bumpCombo();
-              addPop(o.x, '+' + (10 * multiplier));
+              addPop('+' + 10 * multiplier);
             } else if (o.type === 'bonus') {
-              const which = Math.random();
-              if (which < 0.5) { setBoost(true); setTimeout(() => setBoost(false), 3500); }
-              else { setShield(true); }
+              if (Math.random() < 0.5) { setBoost(true); setTimeout(() => setBoost(false), 3500); }
+              else setShield(true);
               setScore((s) => s + 25 * multiplier);
               bumpCombo();
-              addPop(o.x, 'БОНУС!');
+              addPop('БОНУС!');
             } else {
-              if (shield) { setShield(false); addPop(o.x, 'ЩИТ!'); }
-              else { setCombo(0); setScore((s) => Math.max(0, s - 15)); addPop(o.x, '−15'); }
+              if (jumpingRef.current) {
+                setScore((s) => s + 15 * multiplier);
+                bumpCombo();
+                addPop('ПРЫЖОК!');
+              } else if (shield) {
+                setShield(false); addPop('ЩИТ!'); triggerShake();
+              } else {
+                setCombo(0); setScore((s) => Math.max(0, s - 15)); addPop('−15'); triggerShake();
+              }
             }
             continue;
           }
-          if (y < 110) next.push({ ...o, y });
+          if (z < 1.1) next.push({ ...o, z });
         }
         return next;
       });
     }, 30);
     return () => clearInterval(loop);
-  }, [running, lane, boost, shield, multiplier]);
+  }, [running, boost, shield, multiplier]);
 
-  // win check
   useEffect(() => {
-    if (gold >= level.goldTarget && running) {
-      setRunning(false);
-      setFinished(true);
-    }
+    if (gold >= level.goldTarget && running) { setRunning(false); setFinished(true); }
   }, [gold, level.goldTarget, running]);
 
   const bumpCombo = () => {
@@ -116,25 +149,52 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
     window.clearTimeout(comboTimer.current);
     comboTimer.current = window.setTimeout(() => setCombo(0), 2600);
   };
-
-  const addPop = (x: number, txt: string) => {
+  const addPop = (txt: string) => {
     const id = idRef.current++;
-    setPop((p) => [...p, { id, x, y: 78, txt }]);
-    setTimeout(() => setPop((p) => p.filter((i) => i.id !== id)), 700);
+    const x = 30 + Math.random() * 40;
+    setPops((p) => [...p, { id, txt, x }]);
+    setTimeout(() => setPops((p) => p.filter((i) => i.id !== id)), 700);
   };
+  const triggerShake = () => { setShake(true); setTimeout(() => setShake(false), 300); };
 
   const stars = gold >= level.goldTarget ? 3 : gold >= level.goldTarget * 0.6 ? 2 : 1;
 
+  const projected = (o: Obj) => {
+    const scale = 0.16 + o.z * 1.0;
+    const laneShift = LANE_X[o.lane] * (16 + o.z * 24);
+    const left = 50 + laneShift;
+    const bottom = 20 + (1 - o.z) * 44;
+    return { left, bottom, scale };
+  };
+
+  const catBottom = jumping ? 30 : 15;
+
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden cloud-bg select-none">
+    <div className={`fixed inset-0 z-50 overflow-hidden select-none ${shake ? 'animate-wiggle' : ''}`}>
+      <div className="absolute inset-0 cloud-bg" />
+
+      {/* ROAD */}
+      <div className="absolute inset-x-0 bottom-0 h-[62%] overflow-hidden" style={{ perspective: '480px' }}>
+        <div
+          className="absolute inset-x-0 bottom-0 h-[220%] origin-bottom"
+          style={{
+            transform: 'rotateX(64deg)',
+            background: 'repeating-linear-gradient(0deg, #C25E00 0 40px, #A34E00 40px 80px)',
+          }}
+        >
+          <div className="absolute top-0 bottom-0 left-[38%] w-1 bg-white/40" />
+          <div className="absolute top-0 bottom-0 left-[62%] w-1 bg-white/40" />
+        </div>
+      </div>
+
       {/* HUD */}
-      <div className="absolute top-0 inset-x-0 z-20 p-4 flex items-center justify-between">
+      <div className="absolute top-0 inset-x-0 z-30 p-4 flex items-center justify-between">
         <button onClick={onExit} className="btn-3d bg-white text-caramel font-display font-bold rounded-2xl px-4 py-2 flex items-center gap-1">
           <Icon name="ChevronLeft" size={20} /> Выход
         </button>
         <div className="flex gap-2">
           <div className="bg-white/90 rounded-2xl px-4 py-2 font-display font-bold text-caramel flex items-center gap-1 card-pop">
-            <span className="text-xl">🪙</span> {gold}/{level.goldTarget}
+            🪙 {gold}/{level.goldTarget}
           </div>
           <div className="bg-grape text-white rounded-2xl px-4 py-2 font-display font-bold flex items-center gap-1 card-pop">
             <Icon name="Star" size={18} /> {score}
@@ -142,80 +202,83 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
         </div>
       </div>
 
-      {/* Combo */}
+      <div className="absolute top-[70px] inset-x-6 z-30 h-3 bg-white/50 rounded-full overflow-hidden">
+        <div className="h-full bg-mint transition-all duration-300" style={{ width: `${Math.min(100, (gold / level.goldTarget) * 100)}%` }} />
+      </div>
+
       {combo >= 2 && (
-        <div className="absolute top-24 inset-x-0 z-20 flex justify-center animate-scale-in">
+        <div className="absolute top-24 inset-x-0 z-30 flex justify-center animate-scale-in">
           <div className="bg-candy text-white font-display font-extrabold text-2xl px-6 py-2 rounded-full card-pop rotate-[-3deg]">
             🔥 КОМБО x{multiplier} <span className="text-white/80 text-lg">({combo})</span>
           </div>
         </div>
       )}
 
-      {/* Powerup indicators */}
-      <div className="absolute top-24 right-4 z-20 flex flex-col gap-2">
+      <div className="absolute top-24 right-4 z-30 flex flex-col gap-2">
         {boost && <Badge icon="Zap" label="Ускорение" c="bg-honey" />}
         {shield && <Badge icon="Shield" label="Щит" c="bg-sky" />}
       </div>
 
-      {/* Progress bar */}
-      <div className="absolute top-[70px] inset-x-6 z-20 h-3 bg-white/50 rounded-full overflow-hidden">
-        <div className="h-full bg-mint transition-all duration-300" style={{ width: `${Math.min(100, (gold / level.goldTarget) * 100)}%` }} />
+      {/* OBJECTS */}
+      <div className="absolute inset-0 z-10">
+        {objs.map((o) => {
+          const p = projected(o);
+          const emoji = o.type === 'gold' ? '🪙' : o.type === 'bonus' ? '🎁' : '🚧';
+          return (
+            <div
+              key={o.id}
+              className="absolute -translate-x-1/2"
+              style={{ left: `${p.left}%`, bottom: `${p.bottom}%`, fontSize: `${p.scale * 3.4}rem`, opacity: Math.min(1, 0.3 + o.z), zIndex: Math.round(o.z * 100) }}
+            >
+              {emoji}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Field */}
-      <div className="absolute inset-0">
-        {/* ground */}
-        <div className="absolute bottom-0 inset-x-0 h-[22%] bg-gradient-to-t from-caramel to-honey-dark" />
-        {/* lane hints */}
-        {LANES.map((x, i) => (
-          <div key={i} className="absolute bottom-0 w-1 h-[22%] bg-white/15" style={{ left: `${x}%` }} />
-        ))}
+      {pops.map((p) => (
+        <div key={p.id} className="absolute z-30 -translate-x-1/2 font-display font-extrabold text-2xl text-white animate-float-coin"
+          style={{ left: `${p.x}%`, bottom: '34%', WebkitTextStroke: '2px #C25E00' }}>
+          {p.txt}
+        </div>
+      ))}
 
-        {/* objects */}
-        {objs.map((o) => (
-          <div key={o.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-3xl md:text-4xl drop-shadow"
-            style={{ left: `${o.x}%`, top: `${o.y}%` }}>
-            {o.type === 'gold' ? '🪙' : o.type === 'bonus' ? '🎁' : '🌵'}
-          </div>
-        ))}
-
-        {/* pops */}
-        {pop.map((p) => (
-          <div key={p.id} className="absolute -translate-x-1/2 font-display font-extrabold text-xl text-white text-stroke-white animate-float-coin"
-            style={{ left: `${p.x}%`, top: `${p.y}%`, WebkitTextStroke: '2px #C25E00' }}>
-            {p.txt}
-          </div>
-        ))}
-
-        {/* cat */}
-        <img src={catImg} alt="Пряник"
-          className={`absolute bottom-[16%] -translate-x-1/2 w-24 md:w-28 transition-all duration-150 drop-shadow-2xl ${running ? 'animate-bounce-soft' : ''}`}
-          style={{ left: `${LANES[lane]}%` }} />
+      {/* CAT */}
+      <div className="absolute z-20 left-1/2 transition-all duration-200"
+        style={{ bottom: `${catBottom}%`, transform: `translateX(-50%) translateX(${LANE_X[lane] * 26}%)` }}>
+        <img
+          src={catImg}
+          alt="Пряник"
+          className={`w-32 md:w-40 scale-x-[-1] ${jumping ? '' : 'animate-bounce-soft'}`}
+          style={{ filter: 'drop-shadow(0 12px 12px rgba(0,0,0,.3))' }}
+        />
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-0 w-20 h-4 bg-black/25 rounded-[100%] blur-sm" />
       </div>
 
-      {/* Controls */}
+      {/* CONTROLS */}
       {running && (
-        <div className="absolute bottom-6 inset-x-0 z-20 flex justify-center gap-6 px-6">
-          <button onClick={() => move(-1)} className="btn-3d bg-white text-caramel rounded-3xl w-24 h-16 flex items-center justify-center">
-            <Icon name="ArrowLeft" size={36} />
+        <div className="absolute bottom-5 inset-x-0 z-30 flex items-center justify-center gap-3 px-4">
+          <button onClick={() => move(-1)} className="btn-3d bg-white text-caramel rounded-3xl w-20 h-16 flex items-center justify-center">
+            <Icon name="ArrowLeft" size={32} />
           </button>
-          <button onClick={() => move(1)} className="btn-3d bg-white text-caramel rounded-3xl w-24 h-16 flex items-center justify-center">
-            <Icon name="ArrowRight" size={36} />
+          <button onClick={jump} className="btn-3d bg-honey text-white rounded-3xl w-28 h-16 flex items-center justify-center font-display font-bold gap-1">
+            <Icon name="ArrowUp" size={28} /> Прыжок
+          </button>
+          <button onClick={() => move(1)} className="btn-3d bg-white text-caramel rounded-3xl w-20 h-16 flex items-center justify-center">
+            <Icon name="ArrowRight" size={32} />
           </button>
         </div>
       )}
 
-      {/* Win screen */}
+      {/* WIN */}
       {finished && (
-        <div className="absolute inset-0 z-30 bg-black/40 flex items-center justify-center p-6">
+        <div className="absolute inset-0 z-40 bg-black/40 flex items-center justify-center p-6">
           <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full text-center card-pop animate-scale-in">
             <div className="text-6xl mb-2 animate-wiggle inline-block">🏆</div>
             <h2 className="font-display font-extrabold text-3xl text-caramel">Уровень пройден!</h2>
             <p className="font-body text-muted-foreground mt-1">{level.name}</p>
             <div className="flex justify-center gap-2 my-4">
-              {[1, 2, 3].map((s) => (
-                <span key={s} className={`text-4xl ${s <= stars ? '' : 'grayscale opacity-30'}`}>⭐</span>
-              ))}
+              {[1, 2, 3].map((s) => <span key={s} className={`text-4xl ${s <= stars ? '' : 'grayscale opacity-30'}`}>⭐</span>)}
             </div>
             <div className="flex justify-center gap-3 mb-5">
               <div className="bg-honey-light rounded-2xl px-4 py-2 font-display font-bold text-caramel">🪙 {gold}</div>
@@ -228,11 +291,11 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
         </div>
       )}
 
-      {/* Powerup legend */}
       <div className="absolute bottom-24 left-4 z-10 hidden md:flex flex-col gap-1 text-white/90 font-body text-sm">
         {POWERUPS.map((p) => (
           <div key={p.id} className="flex items-center gap-1"><Icon name={p.icon} size={14} /> {p.name}</div>
         ))}
+        <div className="flex items-center gap-1 mt-1"><Icon name="ArrowUp" size={14} /> Прыгай через 🚧</div>
       </div>
     </div>
   );
