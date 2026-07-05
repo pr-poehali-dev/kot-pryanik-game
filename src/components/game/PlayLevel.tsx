@@ -18,8 +18,16 @@ interface Obj {
 
 const LANE_X = [-1, 0, 1];
 
+interface Tree {
+  id: number;
+  z: number;
+  side: -1 | 1;
+  variant: number;
+}
+
 export default function PlayLevel({ level, catImg, onExit }: Props) {
   const [running, setRunning] = useState(true);
+  const [paused, setPaused] = useState(false);
   const [lane, setLane] = useState(1);
   const [jumping, setJumping] = useState(false);
   const [gold, setGold] = useState(0);
@@ -28,29 +36,32 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
   const [shield, setShield] = useState(false);
   const [boost, setBoost] = useState(false);
   const [objs, setObjs] = useState<Obj[]>([]);
+  const [trees, setTrees] = useState<Tree[]>([]);
   const [finished, setFinished] = useState(false);
   const [pops, setPops] = useState<{ id: number; txt: string; x: number }[]>([]);
   const [shake, setShake] = useState(false);
 
   const idRef = useRef(0);
+  const treeIdRef = useRef(0);
   const comboTimer = useRef<number>();
   const jumpTimer = useRef<number>();
   const laneRef = useRef(1);
   const jumpingRef = useRef(false);
+  const active = running && !paused;
 
   const multiplier = 1 + Math.floor(combo / 3);
 
   const move = useCallback((dir: number) => {
-    if (!running) return;
+    if (!active) return;
     setLane((l) => {
       const n = Math.max(0, Math.min(2, l + dir));
       laneRef.current = n;
       return n;
     });
-  }, [running]);
+  }, [active]);
 
   const jump = useCallback(() => {
-    if (!running || jumpingRef.current) return;
+    if (!active || jumpingRef.current) return;
     jumpingRef.current = true;
     setJumping(true);
     window.clearTimeout(jumpTimer.current);
@@ -58,7 +69,7 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
       jumpingRef.current = false;
       setJumping(false);
     }, 620);
-  }, [running]);
+  }, [active]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -86,7 +97,7 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
   }, [move, jump]);
 
   useEffect(() => {
-    if (!running) return;
+    if (!active) return;
     const spawn = setInterval(() => {
       const r = Math.random();
       const type: ObjType = r < 0.62 ? 'gold' : r < 0.78 ? 'bonus' : 'enemy';
@@ -96,10 +107,32 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
       ]);
     }, 720);
     return () => clearInterval(spawn);
-  }, [running]);
+  }, [active]);
+
+  // trees along the road
+  useEffect(() => {
+    if (!active) return;
+    const spawn = setInterval(() => {
+      setTrees((t) => [
+        ...t,
+        { id: treeIdRef.current++, z: 0, side: -1, variant: Math.floor(Math.random() * 3) },
+        { id: treeIdRef.current++, z: 0, side: 1, variant: Math.floor(Math.random() * 3) },
+      ]);
+    }, 500);
+    return () => clearInterval(spawn);
+  }, [active]);
 
   useEffect(() => {
-    if (!running) return;
+    if (!active) return;
+    const speed = boost ? 0.024 : 0.016;
+    const loop = setInterval(() => {
+      setTrees((prev) => prev.map((t) => ({ ...t, z: t.z + speed })).filter((t) => t.z < 1.15));
+    }, 30);
+    return () => clearInterval(loop);
+  }, [active, boost]);
+
+  useEffect(() => {
+    if (!active) return;
     const speed = boost ? 0.03 : 0.02;
     const loop = setInterval(() => {
       setObjs((prev) => {
@@ -138,7 +171,7 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
       });
     }, 30);
     return () => clearInterval(loop);
-  }, [running, boost, shield, multiplier]);
+  }, [active, boost, shield, multiplier]);
 
   useEffect(() => {
     if (gold >= level.goldTarget && running) { setRunning(false); setFinished(true); }
@@ -167,11 +200,27 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
     return { left, bottom, scale };
   };
 
+  const projectedTree = (t: Tree) => {
+    const scale = 0.25 + t.z * 1.3;
+    const spread = 36 + t.z * 30;
+    const left = 50 + t.side * spread;
+    const bottom = 16 + (1 - t.z) * 46;
+    return { left, bottom, scale };
+  };
+
   const catBottom = jumping ? 30 : 15;
 
   return (
     <div className={`fixed inset-0 z-50 overflow-hidden select-none ${shake ? 'animate-wiggle' : ''}`}>
+      {/* SKY */}
       <div className="absolute inset-0 cloud-bg" />
+
+      {/* CITY SKYLINE */}
+      <div className="absolute inset-x-0 bottom-[58%] h-24 flex items-end justify-center gap-1 opacity-40 pointer-events-none">
+        {[38, 60, 45, 70, 50, 65, 40].map((h, i) => (
+          <div key={i} className="bg-sky/60 rounded-t-sm" style={{ width: 26, height: h }} />
+        ))}
+      </div>
 
       {/* ROAD */}
       <div className="absolute inset-x-0 bottom-0 h-[62%] overflow-hidden" style={{ perspective: '480px' }}>
@@ -187,19 +236,30 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
         </div>
       </div>
 
+      {/* TREES */}
+      <div className="absolute inset-0 z-[5] pointer-events-none">
+        {trees.map((t) => {
+          const p = projectedTree(t);
+          return (
+            <div key={t.id} className="absolute -translate-x-1/2"
+              style={{ left: `${p.left}%`, bottom: `${p.bottom}%`, fontSize: `${p.scale * 3.2}rem`, opacity: Math.min(1, 0.4 + t.z) }}>
+              🌲
+            </div>
+          );
+        })}
+      </div>
+
       {/* HUD */}
       <div className="absolute top-0 inset-x-0 z-30 p-4 flex items-center justify-between">
-        <button onClick={onExit} className="btn-3d bg-white text-caramel font-display font-bold rounded-2xl px-4 py-2 flex items-center gap-1">
-          <Icon name="ChevronLeft" size={20} /> Выход
-        </button>
-        <div className="flex gap-2">
-          <div className="bg-white/90 rounded-2xl px-4 py-2 font-display font-bold text-caramel flex items-center gap-1 card-pop">
-            🪙 {gold}/{level.goldTarget}
-          </div>
-          <div className="bg-grape text-white rounded-2xl px-4 py-2 font-display font-bold flex items-center gap-1 card-pop">
-            <Icon name="Star" size={18} /> {score}
-          </div>
+        <div className="bg-white/90 rounded-2xl px-4 py-2 font-display font-bold text-caramel flex items-center gap-1 card-pop">
+          🪙 {gold}/{level.goldTarget}
         </div>
+        <div className="bg-grape text-white rounded-2xl px-4 py-2 font-display font-bold flex items-center gap-1 card-pop">
+          <Icon name="Star" size={18} /> {score}
+        </div>
+        <button onClick={() => setPaused(true)} className="btn-3d bg-honey text-white rounded-full w-12 h-12 flex items-center justify-center">
+          <Icon name="Pause" size={22} />
+        </button>
       </div>
 
       <div className="absolute top-[70px] inset-x-6 z-30 h-3 bg-white/50 rounded-full overflow-hidden">
@@ -256,7 +316,7 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
       </div>
 
       {/* CONTROLS */}
-      {running && (
+      {active && (
         <div className="absolute bottom-5 inset-x-0 z-30 flex items-center justify-center gap-3 px-4">
           <button onClick={() => move(-1)} className="btn-3d bg-white text-caramel rounded-3xl w-20 h-16 flex items-center justify-center">
             <Icon name="ArrowLeft" size={32} />
@@ -286,6 +346,22 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
             </div>
             <button onClick={onExit} className="btn-3d bg-mint text-white font-display font-bold text-lg rounded-2xl w-full py-3">
               Продолжить
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PAUSE */}
+      {paused && (
+        <div className="absolute inset-0 z-40 bg-black/50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full text-center card-pop animate-scale-in">
+            <div className="text-6xl mb-2">⏸️</div>
+            <h2 className="font-display font-extrabold text-3xl text-caramel mb-5">Пауза</h2>
+            <button onClick={() => setPaused(false)} className="btn-3d bg-mint text-white font-display font-bold text-lg rounded-2xl w-full py-3 mb-3 flex items-center justify-center gap-2">
+              <Icon name="Play" size={22} /> Продолжить
+            </button>
+            <button onClick={onExit} className="btn-3d bg-white border-2 border-muted text-caramel font-display font-bold text-lg rounded-2xl w-full py-3 flex items-center justify-center gap-2">
+              <Icon name="ChevronLeft" size={22} /> Выйти в меню
             </button>
           </div>
         </div>
