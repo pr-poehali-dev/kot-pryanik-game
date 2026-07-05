@@ -5,7 +5,7 @@ import {
   LEVELS, SHOP_ITEMS, RANKING, POWERUPS, CHALLENGES, Level,
 } from '@/data/game';
 
-const CAT_IMG = 'https://cdn.poehali.dev/projects/ee9c33ea-4b8f-4a78-9763-92a7406d9016/files/d8540158-0bae-4d80-87ea-2dd0263ec8f4.jpg';
+const CAT_IMG = 'https://cdn.poehali.dev/projects/ee9c33ea-4b8f-4a78-9763-92a7406d9016/files/d7105d4e-afd8-413d-b909-3bd80664f88f.jpg';
 
 type Screen = 'menu' | 'levels' | 'ranking' | 'shop' | 'settings' | 'help';
 
@@ -63,7 +63,7 @@ function Menu({ onPlay, go }: { onPlay: () => void; go: (s: Screen) => void }) {
     <div className="text-center animate-fade-in">
       <div className="relative inline-block mt-2 mb-4">
         <div className="absolute inset-0 bg-honey-light rounded-full blur-2xl scale-90 opacity-70 animate-spin-slow" />
-        <img src={CAT_IMG} alt="Пряник" className="relative w-56 md:w-72 mx-auto drop-shadow-2xl animate-bounce-soft" />
+        <img src={CAT_IMG} alt="Пряник" className="relative w-56 md:w-72 mx-auto drop-shadow-2xl animate-bounce-soft mix-blend-multiply" />
       </div>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl text-white" style={{ WebkitTextStroke: '3px #C25E00' }}>
         Бег за золотом

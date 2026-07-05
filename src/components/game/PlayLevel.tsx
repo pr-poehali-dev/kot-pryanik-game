@@ -309,7 +309,7 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
         <img
           src={catImg}
           alt="Пряник"
-          className={`w-32 md:w-40 scale-x-[-1] ${jumping ? '' : 'animate-bounce-soft'}`}
+          className={`w-32 md:w-40 mix-blend-multiply ${jumping ? '' : 'animate-bounce-soft'}`}
           style={{ filter: 'drop-shadow(0 12px 12px rgba(0,0,0,.3))' }}
         />
         <div className="absolute left-1/2 -translate-x-1/2 bottom-0 w-20 h-4 bg-black/25 rounded-[100%] blur-sm" />
