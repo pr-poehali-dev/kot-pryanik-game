@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react';
 import Icon from '@/components/ui/icon';
 import { POWERUPS, Level } from '@/data/game';
-import { useTransparentImage } from '@/hooks/use-transparent-image';
+
+const GameScene3D = lazy(() => import('./GameScene3D'));
 
 interface Props {
   level: Level;
-  catImg: string;
+  catImg?: string;
   onExit: () => void;
 }
 
@@ -17,8 +18,6 @@ interface Obj {
   z: number;
 }
 
-const LANE_X = [-1, 0, 1];
-
 interface Tree {
   id: number;
   z: number;
@@ -26,8 +25,7 @@ interface Tree {
   variant: number;
 }
 
-export default function PlayLevel({ level, catImg, onExit }: Props) {
-  const catImgTransparent = useTransparentImage(catImg);
+export default function PlayLevel({ level, onExit }: Props) {
   const [running, setRunning] = useState(true);
   const [paused, setPaused] = useState(false);
   const [lane, setLane] = useState(1);
@@ -194,62 +192,12 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
 
   const stars = gold >= level.goldTarget ? 3 : gold >= level.goldTarget * 0.6 ? 2 : 1;
 
-  const projected = (o: Obj) => {
-    const scale = 0.16 + o.z * 1.0;
-    const laneShift = LANE_X[o.lane] * (16 + o.z * 24);
-    const left = 50 + laneShift;
-    const bottom = 20 + (1 - o.z) * 44;
-    return { left, bottom, scale };
-  };
-
-  const projectedTree = (t: Tree) => {
-    const scale = 0.25 + t.z * 1.3;
-    const spread = 36 + t.z * 30;
-    const left = 50 + t.side * spread;
-    const bottom = 16 + (1 - t.z) * 46;
-    return { left, bottom, scale };
-  };
-
-  const catBottom = jumping ? 30 : 15;
-
   return (
     <div className={`fixed inset-0 z-50 overflow-hidden select-none ${shake ? 'animate-wiggle' : ''}`}>
-      {/* SKY */}
-      <div className="absolute inset-0 cloud-bg" />
-
-      {/* CITY SKYLINE */}
-      <div className="absolute inset-x-0 bottom-[58%] h-24 flex items-end justify-center gap-1 opacity-40 pointer-events-none">
-        {[38, 60, 45, 70, 50, 65, 40].map((h, i) => (
-          <div key={i} className="bg-sky/60 rounded-t-sm" style={{ width: 26, height: h }} />
-        ))}
-      </div>
-
-      {/* ROAD */}
-      <div className="absolute inset-x-0 bottom-0 h-[62%] overflow-hidden" style={{ perspective: '480px' }}>
-        <div
-          className="absolute inset-x-0 bottom-0 h-[220%] origin-bottom"
-          style={{
-            transform: 'rotateX(64deg)',
-            background: 'repeating-linear-gradient(0deg, #C25E00 0 40px, #A34E00 40px 80px)',
-          }}
-        >
-          <div className="absolute top-0 bottom-0 left-[38%] w-1 bg-white/40" />
-          <div className="absolute top-0 bottom-0 left-[62%] w-1 bg-white/40" />
-        </div>
-      </div>
-
-      {/* TREES */}
-      <div className="absolute inset-0 z-[5] pointer-events-none">
-        {trees.map((t) => {
-          const p = projectedTree(t);
-          return (
-            <div key={t.id} className="absolute -translate-x-1/2"
-              style={{ left: `${p.left}%`, bottom: `${p.bottom}%`, fontSize: `${p.scale * 3.2}rem`, opacity: Math.min(1, 0.4 + t.z) }}>
-              🌲
-            </div>
-          );
-        })}
-      </div>
+      {/* 3D SCENE */}
+      <Suspense fallback={<div className="absolute inset-0 cloud-bg flex items-center justify-center font-display font-bold text-white text-2xl" style={{ WebkitTextStroke: '2px #C25E00' }}>Загрузка 3D…</div>}>
+        <GameScene3D lane={lane} jumping={jumping} boost={boost} objs={objs} trees={trees} />
+      </Suspense>
 
       {/* HUD */}
       <div className="absolute top-0 inset-x-0 z-30 p-4 flex items-center justify-between">
@@ -281,41 +229,12 @@ export default function PlayLevel({ level, catImg, onExit }: Props) {
         {shield && <Badge icon="Shield" label="Щит" c="bg-sky" />}
       </div>
 
-      {/* OBJECTS */}
-      <div className="absolute inset-0 z-10">
-        {objs.map((o) => {
-          const p = projected(o);
-          const emoji = o.type === 'gold' ? '🪙' : o.type === 'bonus' ? '🎁' : '🚧';
-          return (
-            <div
-              key={o.id}
-              className="absolute -translate-x-1/2"
-              style={{ left: `${p.left}%`, bottom: `${p.bottom}%`, fontSize: `${p.scale * 3.4}rem`, opacity: Math.min(1, 0.3 + o.z), zIndex: Math.round(o.z * 100) }}
-            >
-              {emoji}
-            </div>
-          );
-        })}
-      </div>
-
       {pops.map((p) => (
         <div key={p.id} className="absolute z-30 -translate-x-1/2 font-display font-extrabold text-2xl text-white animate-float-coin"
-          style={{ left: `${p.x}%`, bottom: '34%', WebkitTextStroke: '2px #C25E00' }}>
+          style={{ left: `${p.x}%`, bottom: '40%', WebkitTextStroke: '2px #C25E00' }}>
           {p.txt}
         </div>
       ))}
-
-      {/* CAT */}
-      <div className="absolute z-20 left-1/2 transition-all duration-200"
-        style={{ bottom: `${catBottom}%`, transform: `translateX(-50%) translateX(${LANE_X[lane] * 26}%)` }}>
-        <img
-          src={catImgTransparent}
-          alt="Пряник"
-          className={`w-32 md:w-40 origin-bottom ${jumping ? '-rotate-6' : 'animate-run-cycle'}`}
-          style={{ filter: 'drop-shadow(0 12px 12px rgba(0,0,0,.3))' }}
-        />
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-0 w-20 h-4 bg-black/25 rounded-[100%] blur-sm" />
-      </div>
 
       {/* CONTROLS */}
       {active && (
