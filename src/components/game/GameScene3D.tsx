@@ -85,7 +85,7 @@ function Cat({ lane, jumping, boost }: { lane: number; jumping: boolean; boost: 
     }
     // head bob + look toward the lane you're moving to
     if (head.current) {
-      head.current.rotation.y += (THREE.MathUtils.clamp(vx * 6, -0.5, 0.5) - head.current.rotation.y) * Math.min(1, delta * 8);
+      head.current.rotation.y += (THREE.MathUtils.clamp(-vx * 6, -0.5, 0.5) - head.current.rotation.y) * Math.min(1, delta * 8);
       head.current.rotation.z = Math.sin(t + 0.5) * 0.06;
     }
     // happy wagging tail
@@ -111,7 +111,7 @@ function Cat({ lane, jumping, boost }: { lane: number; jumping: boolean; boost: 
 
   return (
     <group ref={group} position={[LANE_X[lane], 0, zToWorld(0.9)]}>
-      <group ref={body}>
+      <group ref={body} rotation={[0, Math.PI, 0]}>
         {/* body */}
         <mesh position={[0, 0.1, 0]} castShadow>
           <capsuleGeometry args={[0.7, 0.9, 6, 12]} />
