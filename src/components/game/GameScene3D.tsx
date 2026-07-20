@@ -32,29 +32,71 @@ const zToWorld = (z: number) => FAR_Z + z * (NEAR_Z - FAR_Z);
 /* ---------------- CAT (low-poly stylized, built from primitives) ---------------- */
 function Cat({ lane, jumping, boost }: { lane: number; jumping: boolean; boost: boolean }) {
   const group = useRef<THREE.Group>(null);
+  const body = useRef<THREE.Group>(null);
+  const head = useRef<THREE.Group>(null);
+  const tail = useRef<THREE.Group>(null);
+  const earL = useRef<THREE.Mesh>(null);
+  const earR = useRef<THREE.Mesh>(null);
   const legFL = useRef<THREE.Mesh>(null);
   const legFR = useRef<THREE.Mesh>(null);
   const legBL = useRef<THREE.Mesh>(null);
   const legBR = useRef<THREE.Mesh>(null);
   const targetX = LANE_X[lane];
+  const prevX = useRef(LANE_X[lane]);
 
   useFrame((state, delta) => {
     if (!group.current) return;
-    // smooth lane change
-    group.current.position.x += (targetX - group.current.position.x) * Math.min(1, delta * 12);
-    // jump arc
-    const jumpH = jumping ? 1.9 : 0;
-    group.current.position.y += (jumpH - group.current.position.y) * Math.min(1, delta * 10);
+    const d = Math.min(1, delta * 12);
+
+    // smooth lane change + measure horizontal velocity for lean
+    const before = group.current.position.x;
+    group.current.position.x += (targetX - before) * d;
+    const vx = group.current.position.x - prevX.current;
+    prevX.current = group.current.position.x;
+
+    // jump arc (nice ease up + gravity down feel)
+    const jumpH = jumping ? 2.1 : 0;
+    group.current.position.y += (jumpH - group.current.position.y) * Math.min(1, delta * (jumping ? 14 : 9));
+
+    const t = state.clock.elapsedTime * (boost ? 24 : 17);
+
     // running leg cycle
-    const t = state.clock.elapsedTime * (boost ? 22 : 16);
-    const swing = jumping ? 0.5 : Math.sin(t) * 0.8;
-    const swingOpp = jumping ? 0.5 : Math.sin(t + Math.PI) * 0.8;
+    const swing = jumping ? 0.6 : Math.sin(t) * 0.9;
+    const swingOpp = jumping ? 0.6 : Math.sin(t + Math.PI) * 0.9;
     if (legFL.current) legFL.current.rotation.x = swing;
     if (legBR.current) legBR.current.rotation.x = swing;
     if (legFR.current) legFR.current.rotation.x = swingOpp;
     if (legBL.current) legBL.current.rotation.x = swingOpp;
-    // body bob + forward tilt on jump
-    group.current.rotation.x += ((jumping ? -0.35 : Math.sin(t) * 0.04) - group.current.rotation.x) * Math.min(1, delta * 10);
+
+    // lean into the turn (banking) + forward tilt while running
+    const targetRoll = jumping ? 0 : -vx * 9;
+    group.current.rotation.z += (targetRoll - group.current.rotation.z) * Math.min(1, delta * 10);
+    // little forward somersault tuck on jump, gentle bob otherwise
+    const targetPitch = jumping ? -0.9 : Math.sin(t) * 0.05;
+    group.current.rotation.x += (targetPitch - group.current.rotation.x) * Math.min(1, delta * 10);
+
+    // bouncy body squash & side-to-side wobble
+    if (body.current) {
+      const bounce = jumping ? 0 : Math.abs(Math.sin(t)) * 0.12;
+      body.current.position.y = bounce;
+      body.current.rotation.z = Math.sin(t) * 0.08;
+      const squash = 1 + Math.sin(t * 2) * 0.05;
+      body.current.scale.set(1, squash, 1);
+    }
+    // head bob + look toward the lane you're moving to
+    if (head.current) {
+      head.current.rotation.y += (THREE.MathUtils.clamp(vx * 6, -0.5, 0.5) - head.current.rotation.y) * Math.min(1, delta * 8);
+      head.current.rotation.z = Math.sin(t + 0.5) * 0.06;
+    }
+    // happy wagging tail
+    if (tail.current) {
+      tail.current.rotation.y = Math.sin(t * 1.4) * 0.6;
+      tail.current.rotation.x = 0.8 + Math.sin(t * 2) * 0.15;
+    }
+    // ears flapping with the run
+    const ear = Math.sin(t * 2) * 0.25;
+    if (earL.current) earL.current.rotation.x = ear;
+    if (earR.current) earR.current.rotation.x = -ear;
   });
 
   const orange = '#F3A03B';
@@ -69,67 +111,97 @@ function Cat({ lane, jumping, boost }: { lane: number; jumping: boolean; boost: 
 
   return (
     <group ref={group} position={[LANE_X[lane], 0, zToWorld(0.9)]}>
-      {/* body */}
-      <mesh position={[0, 0.1, 0]} castShadow>
-        <capsuleGeometry args={[0.7, 0.9, 6, 12]} />
-        <meshStandardMaterial color={orange} />
-      </mesh>
-      {/* belly */}
-      <mesh position={[0, -0.05, 0.5]}>
-        <sphereGeometry args={[0.5, 16, 16]} />
-        <meshStandardMaterial color={cream} />
-      </mesh>
-      {/* head */}
-      <group position={[0, 1.1, 0.3]}>
-        <mesh castShadow>
-          <sphereGeometry args={[0.7, 20, 20]} />
+      <group ref={body}>
+        {/* body */}
+        <mesh position={[0, 0.1, 0]} castShadow>
+          <capsuleGeometry args={[0.7, 0.9, 6, 12]} />
           <meshStandardMaterial color={orange} />
         </mesh>
-        {/* ears */}
-        <mesh position={[-0.42, 0.55, 0]} rotation={[0, 0, 0.3]}>
-          <coneGeometry args={[0.28, 0.5, 4]} />
-          <meshStandardMaterial color={orange} />
-        </mesh>
-        <mesh position={[0.42, 0.55, 0]} rotation={[0, 0, -0.3]}>
-          <coneGeometry args={[0.28, 0.5, 4]} />
-          <meshStandardMaterial color={orange} />
-        </mesh>
-        {/* muzzle */}
-        <mesh position={[0, -0.1, 0.6]}>
-          <sphereGeometry args={[0.34, 16, 16]} />
+        {/* belly */}
+        <mesh position={[0, -0.05, 0.5]}>
+          <sphereGeometry args={[0.5, 16, 16]} />
           <meshStandardMaterial color={cream} />
         </mesh>
-        {/* eyes */}
-        <mesh position={[-0.26, 0.12, 0.55]}>
-          <sphereGeometry args={[0.11, 12, 12]} />
-          <meshStandardMaterial color="#222" />
+        {/* head */}
+        <group ref={head} position={[0, 1.1, 0.3]}>
+          <mesh castShadow>
+            <sphereGeometry args={[0.7, 20, 20]} />
+            <meshStandardMaterial color={orange} />
+          </mesh>
+          {/* ears */}
+          <mesh ref={earL} position={[-0.42, 0.55, 0]} rotation={[0, 0, 0.3]}>
+            <coneGeometry args={[0.28, 0.5, 4]} />
+            <meshStandardMaterial color={orange} />
+          </mesh>
+          <mesh ref={earR} position={[0.42, 0.55, 0]} rotation={[0, 0, -0.3]}>
+            <coneGeometry args={[0.28, 0.5, 4]} />
+            <meshStandardMaterial color={orange} />
+          </mesh>
+          {/* muzzle */}
+          <mesh position={[0, -0.1, 0.6]}>
+            <sphereGeometry args={[0.34, 16, 16]} />
+            <meshStandardMaterial color={cream} />
+          </mesh>
+          {/* eyes */}
+          <mesh position={[-0.26, 0.12, 0.55]}>
+            <sphereGeometry args={[0.13, 12, 12]} />
+            <meshStandardMaterial color="#fff" />
+          </mesh>
+          <mesh position={[0.26, 0.12, 0.55]}>
+            <sphereGeometry args={[0.13, 12, 12]} />
+            <meshStandardMaterial color="#fff" />
+          </mesh>
+          <mesh position={[-0.24, 0.12, 0.64]}>
+            <sphereGeometry args={[0.07, 10, 10]} />
+            <meshStandardMaterial color="#222" />
+          </mesh>
+          <mesh position={[0.28, 0.12, 0.64]}>
+            <sphereGeometry args={[0.07, 10, 10]} />
+            <meshStandardMaterial color="#222" />
+          </mesh>
+          {/* nose */}
+          <mesh position={[0, -0.05, 0.92]}>
+            <sphereGeometry args={[0.08, 10, 10]} />
+            <meshStandardMaterial color="#E86A8C" />
+          </mesh>
+          {/* smiling mouth */}
+          <mesh position={[0, -0.22, 0.86]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.13, 0.03, 8, 16, Math.PI]} />
+            <meshStandardMaterial color="#7a3a1a" />
+          </mesh>
+          {/* rosy cheeks */}
+          <mesh position={[-0.45, -0.08, 0.5]}>
+            <sphereGeometry args={[0.11, 10, 10]} />
+            <meshStandardMaterial color="#F58BA6" transparent opacity={0.7} />
+          </mesh>
+          <mesh position={[0.45, -0.08, 0.5]}>
+            <sphereGeometry args={[0.11, 10, 10]} />
+            <meshStandardMaterial color="#F58BA6" transparent opacity={0.7} />
+          </mesh>
+        </group>
+        {/* red shirt band */}
+        <mesh position={[0, -0.15, 0]}>
+          <cylinderGeometry args={[0.72, 0.72, 0.55, 16]} />
+          <meshStandardMaterial color="#E4402E" />
         </mesh>
-        <mesh position={[0.26, 0.12, 0.55]}>
-          <sphereGeometry args={[0.11, 12, 12]} />
-          <meshStandardMaterial color="#222" />
-        </mesh>
-        {/* nose */}
-        <mesh position={[0, -0.05, 0.92]}>
-          <sphereGeometry args={[0.08, 10, 10]} />
-          <meshStandardMaterial color="#E86A8C" />
-        </mesh>
+        {/* legs */}
+        {Leg(legFL, -0.4, 0.45)}
+        {Leg(legFR, 0.4, 0.45)}
+        {Leg(legBL, -0.4, -0.45)}
+        {Leg(legBR, 0.4, -0.45)}
+        {/* tail */}
+        <group ref={tail} position={[0, 0.3, -0.7]}>
+          <mesh position={[0, 0.3, -0.4]} rotation={[0.8, 0, 0]}>
+            <capsuleGeometry args={[0.14, 1.0, 4, 8]} />
+            <meshStandardMaterial color={orange} />
+          </mesh>
+          <mesh position={[0, 0.7, -0.7]}>
+            <sphereGeometry args={[0.17, 10, 10]} />
+            <meshStandardMaterial color={cream} />
+          </mesh>
+        </group>
       </group>
-      {/* red shirt band */}
-      <mesh position={[0, -0.15, 0]}>
-        <cylinderGeometry args={[0.72, 0.72, 0.55, 16]} />
-        <meshStandardMaterial color="#E4402E" />
-      </mesh>
-      {/* legs */}
-      {Leg(legFL, -0.4, 0.45)}
-      {Leg(legFR, 0.4, 0.45)}
-      {Leg(legBL, -0.4, -0.45)}
-      {Leg(legBR, 0.4, -0.45)}
-      {/* tail */}
-      <mesh position={[0, 0.3, -0.8]} rotation={[0.8, 0, 0]}>
-        <capsuleGeometry args={[0.14, 1.0, 4, 8]} />
-        <meshStandardMaterial color={orange} />
-      </mesh>
-      {/* soft shadow blob */}
+      {/* soft shadow blob (stays on ground) */}
       <mesh position={[0, -1.0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[1.0, 20]} />
         <meshBasicMaterial color="#000" transparent opacity={0.22} />
