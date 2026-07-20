@@ -75,13 +75,16 @@ function Cat({ lane, jumping, boost }: { lane: number; jumping: boolean; boost: 
     const targetPitch = jumping ? -0.9 : Math.sin(t) * 0.05;
     group.current.rotation.x += (targetPitch - group.current.rotation.x) * Math.min(1, delta * 10);
 
-    // bouncy body squash & side-to-side wobble
+    // bouncy body squash & side-to-side wobble (soft, plush)
     if (body.current) {
-      const bounce = jumping ? 0 : Math.abs(Math.sin(t)) * 0.12;
+      const bounce = jumping ? 0 : Math.abs(Math.sin(t)) * 0.14;
       body.current.position.y = bounce;
-      body.current.rotation.z = Math.sin(t) * 0.08;
-      const squash = 1 + Math.sin(t * 2) * 0.05;
-      body.current.scale.set(1, squash, 1);
+      body.current.rotation.z = Math.sin(t) * 0.07;
+      // squash-and-stretch: stretch up when high, squash when landing
+      const phase = Math.sin(t);
+      const stretch = 1 + phase * 0.07;
+      const widen = 1 - phase * 0.05;
+      body.current.scale.set(widen, stretch, widen);
     }
     // head bob + look toward the lane you're moving to
     if (head.current) {
@@ -103,9 +106,9 @@ function Cat({ lane, jumping, boost }: { lane: number; jumping: boolean; boost: 
   const cream = '#FBE7C6';
 
   const Leg = (r: React.RefObject<THREE.Mesh>, x: number, z: number) => (
-    <mesh ref={r} position={[x, -0.55, z]}>
-      <boxGeometry args={[0.35, 0.9, 0.35]} />
-      <meshStandardMaterial color={orange} />
+    <mesh ref={r} position={[x, -0.5, z]} castShadow>
+      <capsuleGeometry args={[0.18, 0.65, 4, 10]} />
+      <meshStandardMaterial color={orange} roughness={0.55} metalness={0} />
     </mesh>
   );
 
@@ -114,96 +117,126 @@ function Cat({ lane, jumping, boost }: { lane: number; jumping: boolean; boost: 
       <group ref={body} rotation={[0, Math.PI, 0]}>
         {/* body */}
         <mesh position={[0, 0.1, 0]} castShadow>
-          <capsuleGeometry args={[0.7, 0.9, 6, 12]} />
-          <meshStandardMaterial color={orange} />
+          <capsuleGeometry args={[0.72, 0.95, 12, 32]} />
+          <meshStandardMaterial color={orange} roughness={0.5} metalness={0} />
         </mesh>
         {/* belly */}
-        <mesh position={[0, -0.05, 0.5]}>
-          <sphereGeometry args={[0.5, 16, 16]} />
-          <meshStandardMaterial color={cream} />
+        <mesh position={[0, -0.05, 0.52]} scale={[1, 1.15, 0.8]}>
+          <sphereGeometry args={[0.52, 32, 32]} />
+          <meshStandardMaterial color={cream} roughness={0.6} metalness={0} />
         </mesh>
         {/* head */}
-        <group ref={head} position={[0, 1.1, 0.3]}>
-          <mesh castShadow>
-            <sphereGeometry args={[0.7, 20, 20]} />
-            <meshStandardMaterial color={orange} />
+        <group ref={head} position={[0, 1.15, 0.28]}>
+          <mesh castShadow scale={[1, 0.95, 1]}>
+            <sphereGeometry args={[0.72, 48, 48]} />
+            <meshStandardMaterial color={orange} roughness={0.5} metalness={0} />
           </mesh>
           {/* ears */}
-          <mesh ref={earL} position={[-0.42, 0.55, 0]} rotation={[0, 0, 0.3]}>
-            <coneGeometry args={[0.28, 0.5, 4]} />
-            <meshStandardMaterial color={orange} />
+          <mesh ref={earL} position={[-0.44, 0.52, 0]} rotation={[0, 0, 0.32]}>
+            <coneGeometry args={[0.26, 0.52, 24]} />
+            <meshStandardMaterial color={orange} roughness={0.5} />
           </mesh>
-          <mesh ref={earR} position={[0.42, 0.55, 0]} rotation={[0, 0, -0.3]}>
-            <coneGeometry args={[0.28, 0.5, 4]} />
-            <meshStandardMaterial color={orange} />
+          <mesh position={[-0.44, 0.5, 0.02]} rotation={[0, 0, 0.32]}>
+            <coneGeometry args={[0.14, 0.34, 20]} />
+            <meshStandardMaterial color="#F58BA6" roughness={0.6} />
+          </mesh>
+          <mesh ref={earR} position={[0.44, 0.52, 0]} rotation={[0, 0, -0.32]}>
+            <coneGeometry args={[0.26, 0.52, 24]} />
+            <meshStandardMaterial color={orange} roughness={0.5} />
+          </mesh>
+          <mesh position={[0.44, 0.5, 0.02]} rotation={[0, 0, -0.32]}>
+            <coneGeometry args={[0.14, 0.34, 20]} />
+            <meshStandardMaterial color="#F58BA6" roughness={0.6} />
           </mesh>
           {/* muzzle */}
-          <mesh position={[0, -0.1, 0.6]}>
-            <sphereGeometry args={[0.34, 16, 16]} />
-            <meshStandardMaterial color={cream} />
+          <mesh position={[0, -0.1, 0.58]} scale={[1.15, 0.9, 0.9]}>
+            <sphereGeometry args={[0.36, 32, 32]} />
+            <meshStandardMaterial color={cream} roughness={0.6} />
           </mesh>
           {/* eyes */}
-          <mesh position={[-0.26, 0.12, 0.55]}>
-            <sphereGeometry args={[0.13, 12, 12]} />
-            <meshStandardMaterial color="#fff" />
+          <mesh position={[-0.26, 0.14, 0.56]} scale={[1, 1.25, 1]}>
+            <sphereGeometry args={[0.15, 24, 24]} />
+            <meshStandardMaterial color="#fff" roughness={0.3} />
           </mesh>
-          <mesh position={[0.26, 0.12, 0.55]}>
-            <sphereGeometry args={[0.13, 12, 12]} />
-            <meshStandardMaterial color="#fff" />
+          <mesh position={[0.26, 0.14, 0.56]} scale={[1, 1.25, 1]}>
+            <sphereGeometry args={[0.15, 24, 24]} />
+            <meshStandardMaterial color="#fff" roughness={0.3} />
           </mesh>
-          <mesh position={[-0.24, 0.12, 0.64]}>
-            <sphereGeometry args={[0.07, 10, 10]} />
-            <meshStandardMaterial color="#222" />
+          {/* irises */}
+          <mesh position={[-0.25, 0.11, 0.68]}>
+            <sphereGeometry args={[0.085, 20, 20]} />
+            <meshStandardMaterial color="#2a1a10" roughness={0.2} />
           </mesh>
-          <mesh position={[0.28, 0.12, 0.64]}>
-            <sphereGeometry args={[0.07, 10, 10]} />
-            <meshStandardMaterial color="#222" />
+          <mesh position={[0.27, 0.11, 0.68]}>
+            <sphereGeometry args={[0.085, 20, 20]} />
+            <meshStandardMaterial color="#2a1a10" roughness={0.2} />
+          </mesh>
+          {/* eye highlights */}
+          <mesh position={[-0.22, 0.17, 0.74]}>
+            <sphereGeometry args={[0.032, 10, 10]} />
+            <meshBasicMaterial color="#fff" />
+          </mesh>
+          <mesh position={[0.3, 0.17, 0.74]}>
+            <sphereGeometry args={[0.032, 10, 10]} />
+            <meshBasicMaterial color="#fff" />
           </mesh>
           {/* nose */}
-          <mesh position={[0, -0.05, 0.92]}>
-            <sphereGeometry args={[0.08, 10, 10]} />
-            <meshStandardMaterial color="#E86A8C" />
+          <mesh position={[0, -0.04, 0.94]} scale={[1.3, 0.9, 1]}>
+            <sphereGeometry args={[0.09, 20, 20]} />
+            <meshStandardMaterial color="#E86A8C" roughness={0.35} />
           </mesh>
           {/* smiling mouth */}
-          <mesh position={[0, -0.22, 0.86]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.13, 0.03, 8, 16, Math.PI]} />
-            <meshStandardMaterial color="#7a3a1a" />
+          <mesh position={[0, -0.24, 0.86]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.14, 0.035, 12, 24, Math.PI]} />
+            <meshStandardMaterial color="#7a3a1a" roughness={0.5} />
           </mesh>
           {/* rosy cheeks */}
-          <mesh position={[-0.45, -0.08, 0.5]}>
-            <sphereGeometry args={[0.11, 10, 10]} />
-            <meshStandardMaterial color="#F58BA6" transparent opacity={0.7} />
+          <mesh position={[-0.46, -0.1, 0.48]}>
+            <sphereGeometry args={[0.13, 16, 16]} />
+            <meshStandardMaterial color="#F58BA6" transparent opacity={0.6} roughness={0.7} />
           </mesh>
-          <mesh position={[0.45, -0.08, 0.5]}>
-            <sphereGeometry args={[0.11, 10, 10]} />
-            <meshStandardMaterial color="#F58BA6" transparent opacity={0.7} />
+          <mesh position={[0.46, -0.1, 0.48]}>
+            <sphereGeometry args={[0.13, 16, 16]} />
+            <meshStandardMaterial color="#F58BA6" transparent opacity={0.6} roughness={0.7} />
           </mesh>
         </group>
         {/* red shirt band */}
         <mesh position={[0, -0.15, 0]}>
-          <cylinderGeometry args={[0.72, 0.72, 0.55, 16]} />
-          <meshStandardMaterial color="#E4402E" />
+          <cylinderGeometry args={[0.74, 0.74, 0.55, 32]} />
+          <meshStandardMaterial color="#E4402E" roughness={0.6} />
+        </mesh>
+        {/* shirt collar */}
+        <mesh position={[0, 0.13, 0]}>
+          <torusGeometry args={[0.7, 0.08, 12, 32]} />
+          <meshStandardMaterial color="#C22E1E" roughness={0.6} />
         </mesh>
         {/* legs */}
-        {Leg(legFL, -0.4, 0.45)}
-        {Leg(legFR, 0.4, 0.45)}
-        {Leg(legBL, -0.4, -0.45)}
-        {Leg(legBR, 0.4, -0.45)}
+        {Leg(legFL, -0.38, 0.42)}
+        {Leg(legFR, 0.38, 0.42)}
+        {Leg(legBL, -0.38, -0.42)}
+        {Leg(legBR, 0.38, -0.42)}
+        {/* paws */}
+        {[[-0.38, 0.42], [0.38, 0.42], [-0.38, -0.42], [0.38, -0.42]].map(([x, z], i) => (
+          <mesh key={i} position={[x, -0.86, z + 0.08]}>
+            <sphereGeometry args={[0.2, 16, 16]} />
+            <meshStandardMaterial color={cream} roughness={0.6} />
+          </mesh>
+        ))}
         {/* tail */}
         <group ref={tail} position={[0, 0.3, -0.7]}>
           <mesh position={[0, 0.3, -0.4]} rotation={[0.8, 0, 0]}>
-            <capsuleGeometry args={[0.14, 1.0, 4, 8]} />
-            <meshStandardMaterial color={orange} />
+            <capsuleGeometry args={[0.15, 1.0, 8, 20]} />
+            <meshStandardMaterial color={orange} roughness={0.5} />
           </mesh>
-          <mesh position={[0, 0.7, -0.7]}>
-            <sphereGeometry args={[0.17, 10, 10]} />
-            <meshStandardMaterial color={cream} />
+          <mesh position={[0, 0.72, -0.72]}>
+            <sphereGeometry args={[0.2, 24, 24]} />
+            <meshStandardMaterial color={cream} roughness={0.6} />
           </mesh>
         </group>
       </group>
       {/* soft shadow blob (stays on ground) */}
       <mesh position={[0, -1.0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[1.0, 20]} />
+        <circleGeometry args={[1.0, 24]} />
         <meshBasicMaterial color="#000" transparent opacity={0.22} />
       </mesh>
     </group>
@@ -293,8 +326,19 @@ function Scene({ lane, jumping, boost, objs, trees }: Props) {
     <>
       <color attach="background" args={['#8fd3ff']} />
       <fog attach="fog" args={['#a7e1ff', 18, 40]} />
-      <hemisphereLight intensity={0.9} groundColor="#57B85B" color="#ffffff" />
-      <directionalLight position={[6, 12, 6]} intensity={1.1} castShadow />
+      <hemisphereLight intensity={0.85} groundColor="#57B85B" color="#ffffff" />
+      <directionalLight
+        position={[6, 12, 6]}
+        intensity={1.15}
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-bias={-0.0004}
+      />
+      {/* soft fill from camera side to model the face */}
+      <directionalLight position={[0, 4, 10]} intensity={0.55} color="#fff6e6" />
+      {/* rim light for a plush edge glow */}
+      <directionalLight position={[-6, 6, -8]} intensity={0.5} color="#bfe0ff" />
       <Road />
       <Cat lane={lane} jumping={jumping} boost={boost} />
       {objs.map((o) => {
